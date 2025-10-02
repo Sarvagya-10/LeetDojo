@@ -8,7 +8,7 @@ from utils import (
     initialize_json_files, load_syllabus, load_user_stats, load_user_progress, 
     load_saved_questions, save_user_stats, save_user_progress, save_saved_questions,
     update_stats, update_progress, check_for_rank_up, generate_question_from_api,
-    create_activity_heatmap
+    create_activity_heatmap, track_question_attempt, load_performance_analytics
 )
 
 # Page configuration
@@ -40,6 +40,8 @@ if 'question_submitted' not in st.session_state:
     st.session_state.question_submitted = False
 if 'subtopic_completed' not in st.session_state:
     st.session_state.subtopic_completed = False
+if 'question_tracked' not in st.session_state:
+    st.session_state.question_tracked = {}
 
 # Initialize JSON files
 initialize_json_files()
@@ -184,6 +186,7 @@ def show_dojo():
             st.session_state.questions = []
             st.session_state.question_submitted = False
             st.session_state.subtopic_completed = False
+            st.session_state.question_tracked = {}  # Reset tracking for new session
             st.rerun()
 
 def show_forge():
@@ -261,8 +264,21 @@ def show_forge():
             st.markdown("### 📚 Detailed Explanation")
             st.markdown(current_question['detailed_explanation'])
             
-            # Update stats
-            update_stats(is_correct)
+            # Update stats and track only once per question
+            question_key = f"{st.session_state.selected_subtopic}_{st.session_state.current_question_index}"
+            if question_key not in st.session_state.question_tracked:
+                update_stats(is_correct)
+                
+                # Track question attempt for analytics
+                track_question_attempt(
+                    subtopic=st.session_state.selected_subtopic,
+                    chapter=st.session_state.selected_chapter,
+                    subject=st.session_state.selected_subject,
+                    class_level=st.session_state.selected_class,
+                    is_correct=is_correct
+                )
+                
+                st.session_state.question_tracked[question_key] = True
             
             # Action buttons
             col1, col2 = st.columns(2)

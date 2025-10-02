@@ -31,6 +31,16 @@ def initialize_json_files():
     # Initialize saved_questions.json
     if not os.path.exists('saved_questions.json'):
         save_saved_questions([])
+    
+    # Initialize performance_analytics.json
+    if not os.path.exists('performance_analytics.json'):
+        default_analytics = {
+            "question_history": [],
+            "subtopic_stats": {},
+            "chapter_stats": {},
+            "subject_stats": {}
+        }
+        save_performance_analytics(default_analytics)
 
 def load_syllabus():
     """Load syllabus from JSON file"""
@@ -80,6 +90,24 @@ def save_saved_questions(questions):
     with open('saved_questions.json', 'w') as f:
         json.dump(questions, f, indent=2)
 
+def load_performance_analytics():
+    """Load performance analytics from JSON file"""
+    try:
+        with open('performance_analytics.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {
+            "question_history": [],
+            "subtopic_stats": {},
+            "chapter_stats": {},
+            "subject_stats": {}
+        }
+
+def save_performance_analytics(analytics):
+    """Save performance analytics to JSON file"""
+    with open('performance_analytics.json', 'w') as f:
+        json.dump(analytics, f, indent=2)
+
 def update_stats(is_correct):
     """Update user statistics after answering a question"""
     stats = load_user_stats()
@@ -111,6 +139,49 @@ def update_stats(is_correct):
     
     stats['last_active_date'] = today
     save_user_stats(stats)
+
+def track_question_attempt(subtopic, chapter, subject, class_level, is_correct, difficulty="Medium"):
+    """Track a question attempt for performance analytics"""
+    analytics = load_performance_analytics()
+    
+    # Add to question history
+    attempt = {
+        "timestamp": datetime.now().isoformat(),
+        "subtopic": subtopic,
+        "chapter": chapter,
+        "subject": subject,
+        "class": class_level,
+        "correct": is_correct,
+        "difficulty": difficulty
+    }
+    analytics['question_history'].append(attempt)
+    
+    # Update subtopic stats
+    if subtopic not in analytics['subtopic_stats']:
+        analytics['subtopic_stats'][subtopic] = {"correct": 0, "total": 0}
+    
+    analytics['subtopic_stats'][subtopic]['total'] += 1
+    if is_correct:
+        analytics['subtopic_stats'][subtopic]['correct'] += 1
+    
+    # Update chapter stats
+    if chapter not in analytics['chapter_stats']:
+        analytics['chapter_stats'][chapter] = {"correct": 0, "total": 0}
+    
+    analytics['chapter_stats'][chapter]['total'] += 1
+    if is_correct:
+        analytics['chapter_stats'][chapter]['correct'] += 1
+    
+    # Update subject stats
+    subject_key = f"{class_level}_{subject}"
+    if subject_key not in analytics['subject_stats']:
+        analytics['subject_stats'][subject_key] = {"correct": 0, "total": 0}
+    
+    analytics['subject_stats'][subject_key]['total'] += 1
+    if is_correct:
+        analytics['subject_stats'][subject_key]['correct'] += 1
+    
+    save_performance_analytics(analytics)
 
 def update_progress(subtopic_name):
     """Update user progress after completing a subtopic"""
