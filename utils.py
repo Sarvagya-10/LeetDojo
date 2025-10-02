@@ -143,24 +143,26 @@ def generate_question_from_api(subtopic_name):
     """Generate a question using Hugging Face API"""
     
     # Get API key from environment
-    api_key = os.getenv("HUGGINGFACE_API_KEY", "default_key")
+    api_key = os.getenv("HUGGINGFACE_API_KEY")
     
-    # Construct the prompt
-    prompt = f"""Generate a unique, JEE-Mains level multiple-choice question on the subtopic of '{subtopic_name}'. 
-    Provide the question text, four distinct options (A, B, C, D) where only one is correct, 
-    the letter of the correct option, and a detailed explanation. The explanation should describe 
-    the solution step-by-step and also mention common pitfalls related to the incorrect options. 
+    if not api_key:
+        # If no API key, use fallback questions
+        return create_fallback_question(subtopic_name)
     
-    Format the output as a JSON object with the following structure:
-    {{
-        "question_text": "The actual question here",
-        "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
-        "correct_answer": "B. Option 2",
-        "detailed_explanation": "Step-by-step explanation here"
-    }}"""
+    # Construct the prompt for better question generation
+    prompt = f"""Generate a JEE-Mains level multiple-choice question on '{subtopic_name}'.
+
+Question:
+Options:
+A. 
+B. 
+C. 
+D. 
+Correct Answer:
+Explanation:"""
     
-    # Hugging Face API endpoint
-    api_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-large"
+    # Use a better model for text generation (Mistral or similar)
+    api_url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -170,44 +172,110 @@ def generate_question_from_api(subtopic_name):
     payload = {
         "inputs": prompt,
         "parameters": {
-            "max_new_tokens": 500,
-            "temperature": 0.7,
-            "do_sample": True
+            "max_new_tokens": 800,
+            "temperature": 0.8,
+            "top_p": 0.95,
+            "do_sample": True,
+            "return_full_text": False
         }
     }
     
     try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        response = requests.post(api_url, headers=headers, json=payload, timeout=60)
         
         if response.status_code == 200:
             result = response.json()
             
-            # Try to parse the generated text as JSON
             try:
-                # Extract JSON from the response
+                # Extract generated text
                 generated_text = result[0]['generated_text'] if isinstance(result, list) else result.get('generated_text', '')
                 
-                # Try to find JSON in the response
-                import re
-                json_match = re.search(r'\{.*\}', generated_text, re.DOTALL)
+                # Parse the structured response
+                question_data = parse_generated_question(generated_text, subtopic_name)
                 
-                if json_match:
-                    question_data = json.loads(json_match.group())
+                if question_data:
                     return question_data
                 else:
-                    # Fallback: create a structured question
                     return create_fallback_question(subtopic_name)
                     
-            except (json.JSONDecodeError, KeyError):
+            except (KeyError, IndexError) as e:
+                st.warning(f"Failed to parse API response: {e}")
                 return create_fallback_question(subtopic_name)
         
+        elif response.status_code == 503:
+            st.warning("AI model is loading. Using fallback question.")
+            return create_fallback_question(subtopic_name)
+        
         else:
-            st.error(f"API Error: {response.status_code}")
+            st.warning(f"API returned status {response.status_code}. Using fallback question.")
             return create_fallback_question(subtopic_name)
             
     except requests.exceptions.RequestException as e:
-        st.error(f"Network error: {str(e)}")
+        st.warning(f"Network error: {str(e)}. Using fallback question.")
         return create_fallback_question(subtopic_name)
+
+def parse_generated_question(text, subtopic_name):
+    """Parse generated question text into structured format"""
+    import re
+    
+    try:
+        # Try to extract question components using regex
+        lines = text.split('\n')
+        question_text = ""
+        options = []
+        correct_answer = ""
+        explanation = ""
+        
+        current_section = None
+        
+        for line in lines:
+            line = line.strip()
+            
+            if line.startswith(('Question:', 'Q:')):
+                current_section = 'question'
+                question_text = line.split(':', 1)[1].strip() if ':' in line else ""
+            elif line.startswith(('A.', 'A)', 'A:')):
+                current_section = 'options'
+                options.append(line)
+            elif line.startswith(('B.', 'B)', 'B:')):
+                options.append(line)
+            elif line.startswith(('C.', 'C)', 'C:')):
+                options.append(line)
+            elif line.startswith(('D.', 'D)', 'D:')):
+                options.append(line)
+            elif line.startswith(('Correct Answer:', 'Answer:', 'Correct:')):
+                current_section = 'answer'
+                answer_text = line.split(':', 1)[1].strip() if ':' in line else ""
+                # Extract the letter
+                match = re.search(r'[ABCD]', answer_text.upper())
+                if match:
+                    correct_letter = match.group()
+                    # Find corresponding option
+                    for opt in options:
+                        if opt.startswith(correct_letter):
+                            correct_answer = opt
+                            break
+            elif line.startswith(('Explanation:', 'Solution:')):
+                current_section = 'explanation'
+                explanation = line.split(':', 1)[1].strip() if ':' in line else ""
+            elif current_section == 'question' and line:
+                question_text += " " + line
+            elif current_section == 'explanation' and line:
+                explanation += " " + line
+        
+        # Validate parsed data
+        if question_text and len(options) == 4 and correct_answer and explanation:
+            return {
+                "question_text": question_text.strip(),
+                "options": [opt.strip() for opt in options],
+                "correct_answer": correct_answer.strip(),
+                "detailed_explanation": explanation.strip()
+            }
+        
+        return None
+        
+    except Exception as e:
+        return None
 
 def create_fallback_question(subtopic_name):
     """Create a fallback question when API fails"""
