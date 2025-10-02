@@ -73,7 +73,13 @@ def show_dashboard():
         st.metric("Current Streak", f"{user_stats['daily_streak']} days")
     
     with col3:
-        total_subtopics = 90  # As mentioned in requirements
+        # Calculate total subtopics from syllabus
+        total_subtopics = sum(
+            len(chapter['subtopics']) 
+            for class_data in syllabus['syllabus'].values() 
+            for subject_data in class_data.values() 
+            for chapter in subject_data['chapters']
+        )
         progress_percentage = (user_progress['total_subtopics_practiced'] / total_subtopics) * 100
         st.metric("Overall Progress", f"{progress_percentage:.1f}%")
     
