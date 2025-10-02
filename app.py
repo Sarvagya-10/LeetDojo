@@ -42,6 +42,12 @@ if 'subtopic_completed' not in st.session_state:
     st.session_state.subtopic_completed = False
 if 'question_tracked' not in st.session_state:
     st.session_state.question_tracked = {}
+if 'challenge_mode' not in st.session_state:
+    st.session_state.challenge_mode = False
+if 'challenge_start_time' not in st.session_state:
+    st.session_state.challenge_start_time = None
+if 'challenge_time_limit' not in st.session_state:
+    st.session_state.challenge_time_limit = 300  # 5 minutes default
 
 # Initialize JSON files
 initialize_json_files()
@@ -113,11 +119,16 @@ def show_dashboard():
             st.session_state.current_view = 'saved_questions'
             st.rerun()
     
-    # Analytics button
+    # Analytics and Challenge buttons
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📊 Performance Analytics", use_container_width=True):
             st.session_state.current_view = 'analytics'
+            st.rerun()
+    
+    with col2:
+        if st.button("⏱️ Timed Challenge", type="primary", use_container_width=True):
+            st.session_state.current_view = 'challenge_setup'
             st.rerun()
 
 def show_dojo():
@@ -198,21 +209,72 @@ def show_dojo():
 
 def show_forge():
     """Display the problem-solving view"""
-    st.title("⚔️ The Forge - Battle Arena")
-    
-    if st.button("← Back to Dojo"):
-        st.session_state.current_view = 'dojo'
+    # Check if challenge mode
+    if st.session_state.challenge_mode:
+        st.title("⏱️ Timed Challenge")
+        
+        # Calculate remaining time
+        elapsed = (datetime.now() - st.session_state.challenge_start_time).total_seconds()
+        remaining = max(0, st.session_state.challenge_time_limit - elapsed)
+        
+        # Check if time's up
+        if remaining == 0:
+            st.error("⏰ Time's up! Challenge complete!")
+            st.session_state.challenge_mode = False
+            st.session_state.current_view = 'dashboard'
+            st.rerun()
+        
+        # Display timer
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
+        timer_color = "red" if remaining < 60 else "orange" if remaining < 180 else "green"
+        
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.markdown(f"### Time Remaining: :{timer_color}[{minutes:02d}:{seconds:02d}]")
+        with col2:
+            st.metric("Progress", f"{st.session_state.current_question_index + 1}/{st.session_state.challenge_num_questions}")
+        with col3:
+            if st.button("End Challenge"):
+                st.session_state.challenge_mode = False
+                st.session_state.current_view = 'dashboard'
+                st.rerun()
+        
+        # Auto-refresh for timer
+        import time
+        time.sleep(1)
         st.rerun()
+    else:
+        st.title("⚔️ The Forge - Battle Arena")
+        
+        if st.button("← Back to Dojo"):
+            st.session_state.current_view = 'dojo'
+            st.rerun()
     
     st.divider()
     
+    # Get current subtopic (from challenge or regular mode)
+    if st.session_state.challenge_mode:
+        total_questions = st.session_state.challenge_num_questions
+        current_subtopic_data = st.session_state.challenge_subtopics[st.session_state.current_question_index]
+        current_subtopic = current_subtopic_data['subtopic']
+        current_chapter = current_subtopic_data['chapter']
+        current_subject = current_subtopic_data['subject']
+        current_class = current_subtopic_data['class']
+    else:
+        total_questions = 3
+        current_subtopic = st.session_state.selected_subtopic
+        current_chapter = st.session_state.selected_chapter
+        current_subject = st.session_state.selected_subject
+        current_class = st.session_state.selected_class
+    
     # Display progress
-    progress_text = f"Question {st.session_state.current_question_index + 1} of 3"
+    progress_text = f"Question {st.session_state.current_question_index + 1} of {total_questions}"
     st.subheader(f"📖 {progress_text}")
-    st.markdown(f"**Subtopic:** {st.session_state.selected_subtopic}")
+    st.markdown(f"**Subtopic:** {current_subtopic}")
     
     # Progress bar for questions
-    st.progress((st.session_state.current_question_index + 1) / 3)
+    st.progress((st.session_state.current_question_index + 1) / total_questions)
     
     st.divider()
     
@@ -220,7 +282,7 @@ def show_forge():
     if len(st.session_state.questions) <= st.session_state.current_question_index:
         with st.spinner("🔮 Generating question from the mystical APIs..."):
             try:
-                question_data = generate_question_from_api(st.session_state.selected_subtopic)
+                question_data = generate_question_from_api(current_subtopic)
                 st.session_state.questions.append(question_data)
             except Exception as e:
                 st.error(f"Failed to generate question: {str(e)}")
@@ -272,16 +334,16 @@ def show_forge():
             st.markdown(current_question['detailed_explanation'])
             
             # Update stats and track only once per question
-            question_key = f"{st.session_state.selected_subtopic}_{st.session_state.current_question_index}"
+            question_key = f"{current_subtopic}_{st.session_state.current_question_index}"
             if question_key not in st.session_state.question_tracked:
                 update_stats(is_correct)
                 
                 # Track question attempt for analytics
                 track_question_attempt(
-                    subtopic=st.session_state.selected_subtopic,
-                    chapter=st.session_state.selected_chapter,
-                    subject=st.session_state.selected_subject,
-                    class_level=st.session_state.selected_class,
+                    subtopic=current_subtopic,
+                    chapter=current_chapter,
+                    subject=current_subject,
+                    class_level=current_class,
                     is_correct=is_correct
                 )
                 
@@ -298,31 +360,141 @@ def show_forge():
                     st.success("Question saved!")
             
             with col2:
-                if st.session_state.current_question_index < 2:
+                last_question = st.session_state.current_question_index >= (total_questions - 1)
+                
+                if not last_question:
                     if st.button("➡️ Next Question", type="primary"):
                         st.session_state.current_question_index += 1
                         st.session_state.question_submitted = False
                         st.session_state.user_answer = None
                         st.rerun()
                 else:
-                    if st.button("🏆 Finish Forging", type="primary"):
-                        # Complete the subtopic
-                        update_progress(st.session_state.selected_subtopic)
-                        rank_up = check_for_rank_up()
-                        
-                        if rank_up:
+                    button_text = "🏆 Finish Challenge" if st.session_state.challenge_mode else "🏆 Finish Forging"
+                    if st.button(button_text, type="primary"):
+                        # In regular mode, complete the subtopic
+                        if not st.session_state.challenge_mode:
+                            update_progress(current_subtopic)
+                            rank_up = check_for_rank_up()
+                            
+                            if rank_up:
+                                st.balloons()
+                                st.success(f"🎊 Congratulations! You've been promoted to {rank_up}!")
+                            
+                            st.session_state.subtopic_completed = True
+                            st.success("🎯 Subtopic completed! Returning to the Dojo...")
+                            st.session_state.current_view = 'dojo'
+                        else:
+                            # Challenge mode complete
                             st.balloons()
-                            st.success(f"🎊 Congratulations! You've been promoted to {rank_up}!")
-                        
-                        st.session_state.subtopic_completed = True
-                        st.success("🎯 Subtopic completed! Returning to the Dojo...")
+                            st.success("🎊 Challenge Complete!")
+                            st.session_state.challenge_mode = False
+                            st.session_state.current_view = 'dashboard'
                         
                         # Reset for next session
-                        st.session_state.current_view = 'dojo'
                         st.session_state.current_question_index = 0
                         st.session_state.questions = []
                         st.session_state.question_submitted = False
                         st.rerun()
+
+def show_challenge_setup():
+    """Display challenge mode setup"""
+    st.title("⏱️ Timed Challenge - Exam Simulation")
+    
+    if st.button("← Back to Dashboard"):
+        st.session_state.current_view = 'dashboard'
+        st.rerun()
+    
+    st.divider()
+    
+    st.markdown("""
+    **Challenge Mode** simulates exam conditions with:
+    - ⏱️ Countdown timer
+    - 🎯 Random questions from selected topics
+    - 📊 Final score and performance report
+    - 🚫 No hints or explanations until completion
+    """)
+    
+    st.divider()
+    
+    # Challenge configuration
+    st.subheader("⚙️ Configure Challenge")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        num_questions = st.selectbox(
+            "Number of Questions",
+            [5, 10, 15, 20, 25],
+            index=1
+        )
+        
+        time_limit = st.selectbox(
+            "Time Limit",
+            [("3 minutes", 180), ("5 minutes", 300), ("10 minutes", 600), ("15 minutes", 900), ("20 minutes", 1200)],
+            format_func=lambda x: x[0],
+            index=1
+        )
+    
+    with col2:
+        subject_filter = st.selectbox(
+            "Subject",
+            ["All Subjects", "Physics", "Chemistry", "Maths"]
+        )
+        
+        class_filter = st.selectbox(
+            "Class",
+            ["Both Classes", "11th", "12th"]
+        )
+    
+    st.divider()
+    
+    if st.button("🚀 Start Challenge", type="primary", use_container_width=True):
+        # Initialize challenge
+        st.session_state.challenge_mode = True
+        st.session_state.challenge_start_time = datetime.now()
+        st.session_state.challenge_time_limit = time_limit[1]
+        st.session_state.challenge_num_questions = num_questions
+        st.session_state.challenge_subject = subject_filter
+        st.session_state.challenge_class = class_filter
+        st.session_state.current_view = 'forge'
+        st.session_state.current_question_index = 0
+        st.session_state.questions = []
+        st.session_state.question_submitted = False
+        st.session_state.question_tracked = {}
+        
+        # Select random subtopics based on filters
+        import random
+        
+        available_subtopics = []
+        for class_key, class_data in syllabus['syllabus'].items():
+            if class_filter != "Both Classes":
+                if class_filter == "11th" and class_key != "class_11":
+                    continue
+                if class_filter == "12th" and class_key != "class_12":
+                    continue
+            
+            for subject_key, subject_data in class_data.items():
+                if subject_filter != "All Subjects" and subject_key != subject_filter.lower():
+                    continue
+                
+                for chapter in subject_data['chapters']:
+                    for subtopic in chapter['subtopics']:
+                        available_subtopics.append({
+                            'subtopic': subtopic,
+                            'chapter': chapter['chapter_name'],
+                            'subject': subject_key.capitalize(),
+                            'class': class_key.replace('class_', '') + 'th'
+                        })
+        
+        # Select random subtopics
+        if len(available_subtopics) >= num_questions:
+            selected = random.sample(available_subtopics, num_questions)
+        else:
+            selected = available_subtopics * (num_questions // len(available_subtopics) + 1)
+            selected = selected[:num_questions]
+        
+        st.session_state.challenge_subtopics = selected
+        st.rerun()
 
 def show_analytics():
     """Display performance analytics and weak areas"""
@@ -479,6 +651,8 @@ def main():
         show_dojo()
     elif st.session_state.current_view == 'forge':
         show_forge()
+    elif st.session_state.current_view == 'challenge_setup':
+        show_challenge_setup()
     elif st.session_state.current_view == 'analytics':
         show_analytics()
     elif st.session_state.current_view == 'saved_questions':
