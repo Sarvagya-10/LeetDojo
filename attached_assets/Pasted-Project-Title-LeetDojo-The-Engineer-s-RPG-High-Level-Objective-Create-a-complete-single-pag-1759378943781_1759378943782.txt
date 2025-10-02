@@ -1,0 +1,163 @@
+Project Title: LeetDojo - The Engineer's RPG
+
+High-Level Objective:
+Create a complete, single-page web application using Python and the Streamlit library. The application, named "LeetDojo," is a gamified learning platform designed to help my younger brother prepare for the JEE exams. It has a minimalistic, dark-themed UI inspired by LeetCode and an "Engineer RPG" theme. The core functionality involves generating subject-specific questions via a Hugging Face API, tracking user progress, and providing a gamified experience with ranks, XP, and streaks. All user data will be stored locally in JSON files.
+
+Core Technologies:
+
+Framework: Streamlit
+
+Language: Python
+
+Data Storage: Local JSON files
+
+File Structure:
+Please organize the code logically. A single app.py is acceptable, but you can also use a helper file like utils.py for data handling and API calls.
+
+app.py: The main Streamlit application logic and UI rendering.
+
+syllabus.json: The syllabus structure (I will provide this file manually).
+
+user_progress.json: Tracks completed subtopics and chapters.
+
+user_stats.json: Tracks XP, rank, streak, and heatmap data.
+
+saved_questions.json: Stores questions the user has saved.
+
+1. Data Management (JSON Structure):
+The application must manage all user data through three separate JSON files. Initialize these files if they don't exist.
+
+user_stats.json:
+
+username: "Brother's Name" (Hardcode a default or allow setting it).
+
+xp: Integer, starts at 0.
+
+rank: String, starts at "Artisan".
+
+daily_streak: Integer, starts at 0.
+
+last_active_date: String (e.g., "2025-10-02"), used to calculate streak.
+
+heatmap_data: A dictionary where keys are dates ("YYYY-MM-DD") and values are the count of questions solved on that day. e.g., {"2025-10-02": 5, "2025-10-03": 3}.
+
+user_progress.json:
+
+completed_subtopics: A list of unique subtopic names that have been completed. e.g., ["Friction", "Elastic Collision"].
+
+total_subtopics_practiced: An integer count of the length of the list above.
+
+saved_questions.json:
+
+A list of objects, where each object represents a saved question.
+
+Each object should contain: question_text, options (a list of 4 strings), correct_answer, detailed_explanation.
+
+2. Application UI and Workflow:
+
+The app should function as a single-page application with changing views based on user interaction. Use st.session_state to manage the current view (e.g., 'dashboard', 'dojo', 'forge').
+
+2.1. The Dashboard (Initial View):
+This is the main landing screen.
+
+Header: Display the username (e.g., "Welcome, [Username]!") and the current rank (e.g., "Rank: Samurai").
+
+Stats Display: Show key statistics in a clear layout using st.metric or columns:
+
+Total XP
+
+Current Daily Streak
+
+Overall Progress (as a percentage, calculated from total_subtopics_practiced / 90 total units). Use st.progress.
+
+Activity Heatmap:
+
+Display a LeetCode-style calendar heatmap for the past year.
+
+Each day on the calendar is a square. The color of the square should be gray by default.
+
+The square's color should change to shades of green based on the number of questions solved that day (from heatmap_data). More questions = brighter green.
+
+Call to Action: A prominent button labeled "Enter the Dojo". Clicking this button changes the view to the Topic Selection page.
+
+Saved Questions Button: A button labeled "View Saved Questions". Clicking this will display a list of all questions from saved_questions.json in an expandable format.
+
+2.2. The Dojo (Topic Selection View):
+This view is for selecting a subtopic to practice.
+
+Hierarchical Dropdowns: Use a series of st.selectbox widgets for navigation. The structure is:
+
+Select Class: (Options: "11th", "12th")
+
+Select Subject: (Options: "Physics", "Chemistry", "Maths")
+
+Select Chapter: (Options populated based on the subject selected from syllabus.json)
+
+Select Subtopic: (Options populated based on the chapter selected)
+
+Progress Indicators: In the subtopic dropdown, visually mark completed subtopics. For example, append a green check emoji (✅) to the names of subtopics found in the user_progress.json completed_subtopics list.
+
+Start Button: Once a subtopic is selected, a button labeled "Begin Forging" appears. Clicking this button changes the view to the Problem Page.
+
+2.3. The Forge (Problem Page View):
+This is where the user solves questions for the selected subtopic.
+
+Question Display: For the chosen subtopic, the app will present 3 questions, one after another.
+
+API Interaction:
+
+For each question, call a function that contacts the Hugging Face API.
+
+The prompt sent to the API should be highly descriptive to ensure quality. Example: "Generate a unique, JEE-Mains level multiple-choice question on the subtopic of '[Subtopic Name]'. Provide the question text, four distinct options (A, B, C, D) where only one is correct, the letter of the correct option, and a detailed explanation. The explanation should describe the solution step-by-step and also mention common pitfalls related to the incorrect options. Format the output as a JSON object with keys: 'question', 'options' (an array of 4 strings), 'correct_answer' (e.g., 'C'), 'explanation'."
+
+Parse the JSON response from the API.
+
+Interaction Loop (for each of the 3 questions):
+
+Display the question text in a clear, large font.
+
+Display the four options using st.radio.
+
+Show a "Submit" button.
+
+Once the user submits, disable the radio buttons and the submit button.
+
+Reveal the result: Display "Correct!" in green text or "Incorrect!" in red text.
+
+Display the detailed explanation fetched from the API.
+
+Show a "Save Question" button. If clicked, save the entire question object to saved_questions.json.
+
+Show a "Next Question" button (or "Finish Forging" on the last question).
+
+Completion: After the third question is answered, automatically update all relevant JSON files (stats, progress), and navigate the user back to the "Dojo" (Topic Selection View).
+
+3. Backend Logic:
+
+Implement functions to handle all the core mechanics.
+
+update_stats(is_correct):
+
+This function is called after each question is submitted.
+
+If is_correct is true, add 10 to xp. If false, add 5 to xp.
+
+Update the heatmap_data for the current date.
+
+Update last_active_date and manage the daily_streak. The streak breaks if current_date - last_active_date > 1 day.
+
+update_progress(subtopic_name):
+
+This function is called after a set of 3 questions for a subtopic is completed.
+
+Add the subtopic_name to the completed_subtopics list in user_progress.json.
+
+Increment total_subtopics_practiced.
+
+check_for_rank_up():
+
+After update_progress is called, check if total_subtopics_practiced is a multiple of 10.
+
+If it is, update the rank in user_stats.json according to the sequence: Artisan -> Peasant -> Ronin -> Samurai -> Daimyo -> Shogun -> Emperor -> Demigod -> Engineer.
+
+Display a celebratory message on the screen using st.balloons() when a rank-up occurs
