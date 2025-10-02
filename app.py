@@ -112,6 +112,13 @@ def show_dashboard():
         if st.button("📚 View Saved Questions", use_container_width=True):
             st.session_state.current_view = 'saved_questions'
             st.rerun()
+    
+    # Analytics button
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📊 Performance Analytics", use_container_width=True):
+            st.session_state.current_view = 'analytics'
+            st.rerun()
 
 def show_dojo():
     """Display the topic selection view"""
@@ -317,6 +324,112 @@ def show_forge():
                         st.session_state.question_submitted = False
                         st.rerun()
 
+def show_analytics():
+    """Display performance analytics and weak areas"""
+    st.title("📊 Performance Analytics")
+    
+    if st.button("← Back to Dashboard"):
+        st.session_state.current_view = 'dashboard'
+        st.rerun()
+    
+    st.divider()
+    
+    analytics = load_performance_analytics()
+    
+    if not analytics['question_history']:
+        st.info("No data yet. Start practicing to see your performance analytics!")
+        return
+    
+    # Overall Statistics
+    st.subheader("📈 Overall Statistics")
+    total_questions = len(analytics['question_history'])
+    correct_questions = sum(1 for q in analytics['question_history'] if q['correct'])
+    accuracy = (correct_questions / total_questions * 100) if total_questions > 0 else 0
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Questions Attempted", total_questions)
+    with col2:
+        st.metric("Correct Answers", correct_questions)
+    with col3:
+        st.metric("Overall Accuracy", f"{accuracy:.1f}%")
+    
+    st.divider()
+    
+    # Weak Areas Identification
+    st.subheader("🎯 Weak Areas (Topics to Focus On)")
+    
+    # Calculate accuracy for each area
+    weak_chapters = []
+    for chapter, stats in analytics['chapter_stats'].items():
+        if stats['total'] >= 3:  # Only consider chapters with at least 3 questions
+            chapter_accuracy = (stats['correct'] / stats['total'] * 100)
+            if chapter_accuracy < 70:  # Weak if < 70% accuracy
+                weak_chapters.append({
+                    'chapter': chapter,
+                    'accuracy': chapter_accuracy,
+                    'correct': stats['correct'],
+                    'total': stats['total']
+                })
+    
+    weak_chapters.sort(key=lambda x: x['accuracy'])
+    
+    if weak_chapters:
+        st.markdown("**Chapters with accuracy below 70%:**")
+        for i, chapter in enumerate(weak_chapters[:10], 1):  # Show top 10
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.markdown(f"{i}. **{chapter['chapter']}**")
+            with col2:
+                st.markdown(f"{chapter['correct']}/{chapter['total']}")
+            with col3:
+                color = "red" if chapter['accuracy'] < 50 else "orange"
+                st.markdown(f":{color}[{chapter['accuracy']:.1f}%]")
+    else:
+        st.success("Great job! No weak areas identified. Keep up the good work!")
+    
+    st.divider()
+    
+    # Subject-wise Performance
+    st.subheader("📚 Subject-wise Performance")
+    
+    subject_data = []
+    for subject_key, stats in analytics['subject_stats'].items():
+        if stats['total'] > 0:
+            accuracy = (stats['correct'] / stats['total'] * 100)
+            subject_data.append({
+                'subject': subject_key.replace('_', ' - '),
+                'accuracy': accuracy,
+                'correct': stats['correct'],
+                'total': stats['total']
+            })
+    
+    if subject_data:
+        subject_data.sort(key=lambda x: x['accuracy'], reverse=True)
+        
+        for subject in subject_data:
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.progress(subject['accuracy'] / 100)
+                st.markdown(f"**{subject['subject']}**: {subject['correct']}/{subject['total']} correct")
+            with col2:
+                st.metric("Accuracy", f"{subject['accuracy']:.1f}%")
+    
+    st.divider()
+    
+    # Recent Activity
+    st.subheader("🕒 Recent Activity")
+    recent_questions = analytics['question_history'][-10:][::-1]  # Last 10, reversed
+    
+    for i, q in enumerate(recent_questions, 1):
+        status_icon = "✅" if q['correct'] else "❌"
+        timestamp = datetime.fromisoformat(q['timestamp']).strftime("%Y-%m-%d %H:%M")
+        
+        with st.expander(f"{status_icon} {q['subtopic']} - {timestamp}"):
+            st.markdown(f"**Subject:** {q['subject']}")
+            st.markdown(f"**Chapter:** {q['chapter']}")
+            st.markdown(f"**Result:** {'Correct' if q['correct'] else 'Incorrect'}")
+
 def show_saved_questions():
     """Display saved questions view"""
     st.title("📚 Saved Questions")
@@ -366,6 +479,8 @@ def main():
         show_dojo()
     elif st.session_state.current_view == 'forge':
         show_forge()
+    elif st.session_state.current_view == 'analytics':
+        show_analytics()
     elif st.session_state.current_view == 'saved_questions':
         show_saved_questions()
 
