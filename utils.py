@@ -225,7 +225,6 @@ def generate_question_from_api(subtopic_name):
 
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
-    print(f"Using API key: {api_key}")
 
     # Import the Google Generative AI library
     try:
