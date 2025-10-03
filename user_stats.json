@@ -1,10 +1,8 @@
 {
   "username": "GURU",
-  "xp": 5,
+  "xp": 0,
   "rank": "Artisan",
   "daily_streak": 0,
   "last_active_date": "2025-10-03",
-  "heatmap_data": {
-    "2025-10-03": 1
-  }
+  "heatmap_data": {}
 }
