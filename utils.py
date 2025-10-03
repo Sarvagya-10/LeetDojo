@@ -4,6 +4,7 @@ import requests
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import streamlit as st
+import google.generativeai as genai
 
 def initialize_json_files():
     """Initialize JSON files if they don't exist"""
@@ -228,7 +229,6 @@ def generate_question_from_api(subtopic_name):
 
     # Import the Google Generative AI library
     try:
-        import google.generativeai as genai
         print("Successfully imported google.generativeai")
     except ImportError:
         print("ERROR: Google Generative AI library not installed")
