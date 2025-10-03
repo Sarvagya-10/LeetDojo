@@ -1,6 +1,31 @@
 {
-  "question_history": [],
-  "subtopic_stats": {},
-  "chapter_stats": {},
-  "subject_stats": {}
+  "question_history": [
+    {
+      "timestamp": "2025-10-03T10:21:47.130096",
+      "subtopic": "Need for measurement: Units of measurement",
+      "chapter": "Units and Measurement",
+      "subject": "Physics",
+      "class": "11th",
+      "correct": false,
+      "difficulty": "Medium"
+    }
+  ],
+  "subtopic_stats": {
+    "Need for measurement: Units of measurement": {
+      "correct": 0,
+      "total": 1
+    }
+  },
+  "chapter_stats": {
+    "Units and Measurement": {
+      "correct": 0,
+      "total": 1
+    }
+  },
+  "subject_stats": {
+    "11th_Physics": {
+      "correct": 0,
+      "total": 1
+    }
+  }
 }
